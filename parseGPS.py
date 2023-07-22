@@ -3,31 +3,48 @@ import serial, os, json, sys
 
 def parse_gpgga(sentence):
     data = sentence.split(",")
-    # print(data)
     if data[0] == "$GPGGA":
         time = data[1]
-        latitude_degrees, latitude_minutes, _ = split_degrees_minutes(data[2])
-        longitude_degrees, longitude_minutes, _ = split_degrees_minutes(data[4])
+        latitude_degrees, latitude_minutes, _ = split_degrees_minutes(data[2], data[3])
+        longitude_degrees, longitude_minutes, _ = split_degrees_minutes(data[4], data[5])
         gps_quality = int(data[6])
         num_satellites = int(data[7])
         hdop = float(data[8])
         altitude = float(data[9])
         geoid_height = float(data[11]) if data[11] else None
+
         return {
             "time": time,
-            "latitude": f"{latitude_degrees} {latitude_minutes}"
-            if data[3] == "N"
-            else f"-{latitude_degrees} {latitude_minutes}",
-            "longitude": f"{longitude_degrees} {longitude_minutes}"
-            if data[5] == "E"
-            else f"-{longitude_degrees} {longitude_minutes}",
+            "latitude": f'{latitude_degrees} {latitude_minutes}',
+            "longitude": f'{longitude_degrees} {longitude_minutes}',
             "gps_quality": gps_quality,
             "num_satellites": num_satellites,
             "hdop": hdop,
             "altitude": altitude,
             "geoid_height": geoid_height,
         }
+
     return None
+
+def split_degrees_minutes(coord_str, direction):
+    if not (isinstance(coord_str, str) and len(coord_str) >= 4):
+        raise ValueError("Invalid input format. Expected 'ddmm.mmmm'.")
+
+    # Extract the degrees and minutes components
+    if coord_str.startswith("0"):
+        degrees = int(coord_str[:3])
+        minutes = float(coord_str[3:])
+    else:
+        degrees = int(coord_str[:2])
+        minutes = float(coord_str[2:])
+
+    coordinate = degrees + minutes / 60.0
+
+    if direction in {"S", "W"}:
+        degrees *= -1
+        coordinate *= -1
+
+    return degrees, minutes, coordinate
 
 
 def parse_gpvtg(sentence):
@@ -83,25 +100,6 @@ def validate_checksum(sentence):
 
     # Compare the calculated checksum with the provided checksum
     return expected_checksum == provided_checksum
-
-
-def split_degrees_minutes(coord_str):
-    # Check if the input is in the correct format (e.g., "ddmm.mmmm" for degrees and minutes)
-    if not (isinstance(coord_str, str) and len(coord_str) >= 4):
-        raise ValueError("Invalid input format. Expected 'ddmm.mmmm'.")
-
-    # Extract the degrees and minutes components
-    if coord_str.startswith("0"):
-        degrees = int(coord_str[:3])
-        minutes = float(coord_str[3:])
-    else:
-        degrees = int(coord_str[:2])
-        minutes = float(coord_str[2:])
-
-    # Combine degrees and minutes to get the full coordinate value
-    coordinate = degrees + minutes / 60.0
-
-    return degrees, minutes, coordinate
 
 if __name__ == "__main__":
     try:
