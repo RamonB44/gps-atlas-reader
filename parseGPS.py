@@ -1,12 +1,13 @@
-import serial, os, json, sys
-
+import serial, os, json, sys, re
 
 def parse_gpgga(sentence):
     data = sentence.split(",")
     if data[0] == "$GPGGA":
         time = data[1]
         latitude_degrees, latitude_minutes, _ = split_degrees_minutes(data[2], data[3])
-        longitude_degrees, longitude_minutes, _ = split_degrees_minutes(data[4], data[5])
+        longitude_degrees, longitude_minutes, _ = split_degrees_minutes(
+            data[4], data[5]
+        )
         gps_quality = int(data[6])
         num_satellites = int(data[7])
         hdop = float(data[8])
@@ -15,8 +16,8 @@ def parse_gpgga(sentence):
 
         return {
             "time": time,
-            "latitude": f'{latitude_degrees} {latitude_minutes}',
-            "longitude": f'{longitude_degrees} {longitude_minutes}',
+            "latitude": f"{latitude_degrees} {latitude_minutes}",
+            "longitude": f"{longitude_degrees} {longitude_minutes}",
             "gps_quality": gps_quality,
             "num_satellites": num_satellites,
             "hdop": hdop,
@@ -25,6 +26,7 @@ def parse_gpgga(sentence):
         }
 
     return None
+
 
 def split_degrees_minutes(coord_str, direction):
     if not (isinstance(coord_str, str) and len(coord_str) >= 4):
@@ -101,29 +103,36 @@ def validate_checksum(sentence):
     # Compare the calculated checksum with the provided checksum
     return expected_checksum == provided_checksum
 
+
 if __name__ == "__main__":
     try:
-        file = open('gps_data.json', 'w')
-        atlas_gps = serial.Serial(port="COM9", baudrate=19200)
+        file = open("gps_data.json", "w")
+        file_gps = open("gps_data.txt", "r")
+        # atlas_gps = serial.Serial(port="COM9", baudrate=19200)
         nmea_data = []
         file.write("[")
-        while True:
-            raw_string_b = atlas_gps.readline()
-            raw_string_s = raw_string_b.decode("utf-8")
+        for line in file_gps.read().split('\n'):
+            # print(line)
+            raw_string_b = line
+            raw_string_b = re.sub(r'[^A-Za-z0-9+$+,+.+*]+', '', raw_string_b) # las excepciones son $ y comas
+            raw_string_s = raw_string_b
             # print(raw_string_s)
             if raw_string_s.startswith("$GPGGA"):
-                nmea_data.insert(0,raw_string_s)
+                # print(len(raw_string_s.split(',')))
+                if len(raw_string_s.split(',')) > 14:
+                    nmea_data.insert(0, raw_string_s)
             if raw_string_s.startswith("$GPVTG"):
-                nmea_data.insert(1,raw_string_s)
+                # print(len(raw_string_s.split(',')))
+                if len(raw_string_s.split(',')) > 9:
+                    nmea_data.insert(1, raw_string_s)
             if len(nmea_data) > 1:
                 parsed_data = parse_nmea_sentences(nmea_data)
                 file.write(json.dumps(parsed_data[0]))
                 file.write(",\n")
                 print(parsed_data)
                 nmea_data = []
-    except:
+    except Exception as e:
+        print(f'Error: %s' % e)
         file.write("]")
         file.close()
         sys.exit(1)
-            
-        
